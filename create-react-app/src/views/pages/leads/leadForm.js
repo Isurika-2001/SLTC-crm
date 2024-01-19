@@ -19,11 +19,13 @@ import { useState } from 'react';
 import { useCallback } from 'react';
 import { Box } from '@mui/system';
 import AddIcon from '@mui/icons-material/Add';
+// import { useParams } from 'react-router-dom';
 
 export default function LeadForm() {
 
 
     const theme = useTheme();
+
     const matchDownSM = useMediaQuery(theme.breakpoints.down('md'));
 
     const [branches, setBranches] = useState([]);
@@ -31,8 +33,11 @@ export default function LeadForm() {
     const [courses, setCourses] = useState([]);
     const [statusForm, setStatusForm] = useState();
     const [lable, setLable] = useState(false);
-    // const [changedFields, setChangedFields] = useState({});
-
+    const [selectedBranchId, setSelectedBranchId] = useState("");
+    const [selectedCourseId, setSelectedCourseId] = useState("");
+    const [selectedStatusId, setselectedStatusId] = useState("");
+    const [changedFields, setChangedFields] = useState({});
+    const [sid, setSid] = useState('');
 
     const date = new Date();
     const formattedDate = date.toISOString().split("T")[0];
@@ -62,50 +67,73 @@ export default function LeadForm() {
         followupId: "",
     });
 
-    useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const leadId = urlParams.get('id');
 
-        const fetchCourses = async () => {
-            try {
-                const response = await fetch("https://localhost:8080/api/courses");
-                if (response.ok) {
-                    const json = await response.json();
-                    setCourses(json);
-                } else {
-                    console.error("Error fetching courses:", response.statusText);
-                }
-            } catch (error) {
-                console.error("Error fetching courses:", error.message);
+
+    const fetchCourses = async () => {
+        try {
+            const response = await fetch("https://localhost:8080/api/courses");
+            if (response.ok) {
+                const json = await response.json();
+                setCourses(json);
+            } else {
+                console.error("Error fetching courses:", response.statusText);
             }
-        };
-        const fetchBranches = async () => {
-            try {
-                const response = await fetch("https://localhost:8080/api/branches");
-                if (response.ok) {
-                    const json = await response.json();
-                    setBranches(json);
-                } else {
-                    console.error("Error fetching branches:", response.statusText);
-                }
-            } catch (error) {
-                console.error("Error fetching branches:", error.message);
+        } catch (error) {
+            console.error("Error fetching courses:", error.message);
+        }
+    };
+    const fetchBranches = async () => {
+        try {
+            const response = await fetch("https://localhost:8080/api/branches");
+            if (response.ok) {
+                const json = await response.json();
+                setBranches(json);
+            } else {
+                console.error("Error fetching branches:", response.statusText);
             }
-        };
-        const fetchStatuses = async () => {
-            try {
-                const response = await fetch("https://localhost:8080/api/status");
-                if (response.ok) {
-                    const json = await response.json();
-                    setStatuses(json);
-                } else {
-                    console.error("Error fetching  status:", response.statusText);
-                }
-            } catch (error) {
-                console.error("Error fetching status:", error.message);
+        } catch (error) {
+            console.error("Error fetching branches:", error.message);
+        }
+    };
+    const fetchStatuses = async () => {
+        try {
+            const response = await fetch("https://localhost:8080/api/status");
+            if (response.ok) {
+                const json = await response.json();
+                setStatuses(json);
+            } else {
+                console.error("Error fetching  status:", response.statusText);
             }
-        };
+        } catch (error) {
+            console.error("Error fetching status:", error.message);
+        }
+    };
+
+    const fetchLeadData = async () => {
+        try {
+            const response = await fetch(`https://localhost:8080/api/leads/${leadId}`);
+            if (response.ok) {
+                const json = await response.json();
+                setValues(json);
+                setSid(json.student_id)
+            } else {
+                console.error("Error fetching  Lead:", response.statusText);
+            }
+        } catch (error) {
+            console.error("Error fetching Lead:", error.message);
+        }
+    }
+
+
+    useEffect(() => {
         fetchCourses();
         fetchBranches();
         fetchStatuses();
+        if (leadId) {
+            fetchLeadData()
+        }
 
     }, [])
 
@@ -116,123 +144,252 @@ export default function LeadForm() {
                 ...prevState,
                 [name]: value,
             }));
-            // setChangedFields((prevChangedFields) => ({
-            //     ...prevChangedFields,
-            //     [name]: value,
-            // }));
+            setChangedFields((prevChangedFields) => ({
+                ...prevChangedFields,
+                [name]: value,
+            }));
+
+            if (name === "branch") {
+                const selectedBranch = branches.find((branch) => branch.name === value);
+                setSelectedBranchId(selectedBranch ? selectedBranch._id : "");
+            } else if (name === "course") {
+                const selectedCourse = courses.find((course) => course.name === value);
+                setSelectedCourseId(selectedCourse ? selectedCourse._id : "");
+            } else if (name === "status") {
+                const selectedStatus = statuses.find((status) => status.name === value);
+                setselectedStatusId(selectedStatus ? selectedStatus._id : "");
+            }
         },
-        []
+        [branches, courses, statuses]
     );
 
     const handleSubmit = useCallback(
         async (event) => {
             event.preventDefault();
-            try {
+            //add lead code
+            if (!leadId) {
+                try {
+                    //check duplicate lead
+                    const chceckDuplicate = await fetch(
+                        `https://localhost:8080/api/checkLead?courseName=${values.course}&branchName=${values.branch}&studentName=${values.name}&contactNo=${values.contact_no}`
+                    );
+                    if (!chceckDuplicate.ok) {
+                        console.error("Error checking duplicates", studentResponse.statusText);
+                        return;
+                    }
 
-                //check duplicate lead
-                const chceckDuplicate = await fetch(
-                    `https://localhost:8080/api/checkLead?courseName=${values.course}&branchName=${values.branch}&studentName=${values.name}&contactNo=${values.contact_no}`
-                );
-                if (!chceckDuplicate.ok) {
-                    console.error("Error checking duplicates", studentResponse.statusText);
-                    return;
+                    const duplicateLead = await chceckDuplicate.json();
+                    setLable(duplicateLead.isDuplicate);
+
+                    console.log("check", duplicateLead.isDuplicate);
+
+                    if (duplicateLead.isDuplicate == false) {
+                        //insert student data
+                        const studentResponse = await fetch("https://localhost:8080/api/students", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                name: values.name,
+                                dob: values.dob,
+                                contact_no: values.contact_no,
+                                email: values.email,
+                                address: values.address,
+                            }),
+                        });
+                        if (!studentResponse.ok) {
+                            console.error(
+                                "Error inserting data to the student table",
+                                studentResponse.statusText
+                            );
+                            return;
+                        }
+                        const studentData = await studentResponse.json();
+                        const { _id: student_id } = studentData;
+                        console.log("Student ID:", student_id);
+
+                        //insert lead data
+                        const leadResponse = await fetch("https://localhost:8080/api/leads", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                date: values.date,
+                                sheduled_to: values.scheduled_to,
+                                course_name: values.course,
+                                branch_name: values.branch,
+                                student_id: student_id,
+                                user_id: '657c3e31fd3c1e4d1c4c8ed1',
+                            }),
+                        });
+                        if (!leadResponse.ok) {
+                            console.error("Error inserting data to the lead table", leadResponse.statusText);
+                            return;
+                        }
+                        const LeadData = await leadResponse.json();
+                        const { _id: lead_id } = LeadData;
+                        console.log("Lead ID:", lead_id);
+                        //insert followup
+                        const followUpResponse = await fetch("https://localhost:8080/api/followUps", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                lead_id: lead_id,
+                                user_id: '657c3e31fd3c1e4d1c4c8ed1',
+                                status: "New",
+                                comment: values.comment,
+                            }),
+                        });
+                        if (!followUpResponse.ok) {
+                            console.error("Error inserting followup data", followUpResponse.statusText);
+                            return;
+                        }
+                        console.log("Data inserted successfully!");
+                        // setChangedFields({});
+                        setValues({
+                            name: "",
+                            dob: "",
+                            email: "",
+                            contact_no: "",
+                            address: "",
+                            date: formattedDate,
+                            scheduled_to: "",
+                            course: "Computer Science",
+                            branch: "Colombo",
+                            status: "Registered",
+                            comment: "",
+                            updateDate: formattedDate,
+                            followupId: "",
+                        });
+                    } else {
+                        console.log("Duplicate Lead");
+                    }
+                } catch (error) {
+                    console.error("Error during data insertion:", error.message);
+                }
+            } else {
+                //update lead code
+                //update student data
+                if (
+                    changedFields.email != null ||
+                    changedFields.address != null ||
+                    changedFields.name != null ||
+                    changedFields.dob != null ||
+                    changedFields.contact_no != null
+                ) {
+
+                    if (Object.keys(changedFields).length > 0) {
+                        console.log(changedFields);
+                        // Only send the changed fields to the server for update
+                        const updateStudentData = {
+                            ...changedFields,
+                        };
+                        console.log(updateStudentData);
+                        console.log(sid);
+                        const updatestudent = await fetch(`https://localhost:8080/api/students/${sid}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(updateStudentData),
+                        });
+
+                        if (!updatestudent.ok) {
+                            console.error("Error updating student data", updatestudent.statusText);
+                            return;
+                        }
+                        console.log("only student updated");
+                    }
                 }
 
-                const duplicateLead = await chceckDuplicate.json();
-                setLable(duplicateLead.isDuplicate);
+                //update lead data
+                if (
+                    changedFields.scheduled_to != null ||
+                    selectedCourseId !== "" ||
+                    selectedBranchId !== ""
+                ) {
+                    console.log("first");
 
-                console.log("check", duplicateLead.isDuplicate);
+                    const updateLeadData = {
+                        // scheduled_at: formattedDate
+                    };
 
-                if (duplicateLead.isDuplicate == false) {
-                    //insert student data
-                    const studentResponse = await fetch("https://localhost:8080/api/students", {
-                        method: "POST",
+                    if (selectedCourseId != "") {
+                        updateLeadData.course_id = selectedCourseId;
+                    }
+                    if (selectedBranchId != "") {
+                        updateLeadData.branch_id = selectedBranchId;
+                    }
+                    if (changedFields.scheduled_to != null) {
+                        updateLeadData.scheduled_to = changedFields.scheduled_to;
+                        updateLeadData.scheduled_at = changedFields.scheduled_at;
+                    }
+                    console.log(changedFields);
+                    const updateLead = await fetch(`https://localhost:8080/api/leads/${leadId}`, {
+                        method: "PATCH",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            name: values.name,
-                            dob: values.dob,
-                            contact_no: values.contact_no,
-                            email: values.email,
-                            address: values.address,
-                        }),
+                        body: JSON.stringify(updateLeadData),
                     });
-                    if (!studentResponse.ok) {
-                        console.error(
-                            "Error inserting data to the student table",
-                            studentResponse.statusText
-                        );
+                    if (!updateLead.ok) {
+                        console.error("Error updating lead data", updateLead.statusText);
                         return;
                     }
-                    const studentData = await studentResponse.json();
-                    const { _id: student_id } = studentData;
-                    console.log("Student ID:", student_id);
-
-                    //insert lead data
-                    const leadResponse = await fetch("https://localhost:8080/api/leads", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            date: values.date,
-                            sheduled_to: values.scheduled_to,
-                            course_name: values.course,
-                            branch_name: values.branch,
-                            student_id: student_id,
-                            user_id: '657c3e31fd3c1e4d1c4c8ed1',
-                        }),
-                    });
-                    if (!leadResponse.ok) {
-                        console.error("Error inserting data to the lead table", leadResponse.statusText);
-                        return;
-                    }
-                    const LeadData = await leadResponse.json();
-                    const { _id: lead_id } = LeadData;
-                    console.log("Lead ID:", lead_id);
-                    //insert followup
-                    const followUpResponse = await fetch("https://localhost:8080/api/followUps", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            lead_id: lead_id,
-                            user_id: '657c3e31fd3c1e4d1c4c8ed1',
-                            status: "New",
-                            comment: values.comment,
-                        }),
-                    });
-                    if (!followUpResponse.ok) {
-                        console.error("Error inserting followup data", followUpResponse.statusText);
-                        return;
-                    }
-                    console.log("Data inserted successfully!");
-                    // setChangedFields({});
-                    setValues({
-                        name: "",
-                        dob: "",
-                        email: "",
-                        contact_no: "",
-                        address: "",
-                        date: formattedDate,
-                        scheduled_to: "",
-                        course: "Computer Science",
-                        branch: "Colombo",
-                        status: "Registered",
-                        comment: "",
-                        updateDate: formattedDate,
-                        followupId: "",
-                    });
-                } else {
-                    console.log("Duplicate Lead");
+                    console.log("only lead updated");
                 }
-            } catch (error) {
-                console.error("Error during data insertion:", error.message);
+
+                //followup add
+                console.log(values.followupId);
+
+                console.log("stsid", selectedStatusId);
+
+                if (selectedStatusId != "" || changedFields.comment != null) {
+                    const updateFollowupData = {
+                        user_id: '657c313de6434e7419e70bec',
+                        lead_id: leadId,
+                    };
+
+                    if (values.comment != "") {
+                        updateFollowupData.comment = values.comment;
+                    }
+                    if (selectedStatusId != "") {
+                        updateFollowupData.status = values.status;
+                    }
+
+                    const addFollowup = await fetch(`https://localhost:8080/api/followUps`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(updateFollowupData),
+                    });
+
+                    if (!addFollowup.ok) {
+                        console.error("Error adding followup data", addFollowup.statusText);
+                        return;
+                    }
+                    console.log("update followup");
+                }
+                console.log("Data updated successfully!");
+                setChangedFields({});
+                setValues({
+                    name: "",
+                    dob: "",
+                    email: "",
+                    contact_no: "",
+                    address: "",
+                    date: formattedDate,
+                    scheduled_to: "",
+                    course: "Computer Science",
+                    branch: "Colombo",
+                    status: "Registered",
+                    comment: "",
+                    updateDate: formattedDate,
+                    followupId: "",
+                });
             }
+
         },
-        [values]
+        [values, changedFields]
     );
 
     return (
         <>
             <form autoComplete="off" noValidate onSubmit={handleSubmit}>
-                <MainCard title="Add New Lead">
+                <MainCard title={leadId ? 'Update Lead' : 'Add Lead'}>
                     <Grid container direction="column" justifyContent="center" >
 
                         <Grid container sx={{ p: 3 }}
@@ -465,18 +622,21 @@ export default function LeadForm() {
                                 </Typography>
                             </Grid>
 
-                            <Grid item xs={12} sm={12}>
-                                <Box sx={{ textAlign: "center", mt: 2, mb: 2 }}>
-                                    <Button style={{ borderColor: 'gray' }}
-                                        onClick={() => {
-                                            setStatusForm(true);
-                                        }}
-                                        variant="outlined"
-                                    >
-                                        <AddIcon style={{ color: 'black' }} />
-                                    </Button>
-                                </Box>
-                            </Grid>
+                            {leadId ? (
+                                <Grid item xs={12} sm={12}>
+                                    <Box sx={{ textAlign: "center", mt: 2, mb: 2 }}>
+                                        <Button style={{ borderColor: 'gray' }}
+                                            onClick={() => {
+                                                setStatusForm(true);
+                                            }}
+                                            variant="outlined"
+                                        >
+                                            <AddIcon style={{ color: 'black' }} />
+                                        </Button>
+                                    </Box>
+                                </Grid>
+                            ) : (<></>)}
+
 
                             {statusForm == true ? (
                                 <>
@@ -543,9 +703,16 @@ export default function LeadForm() {
                             <Divider />
                         </Grid>
                         <CardActions sx={{ justifyContent: "flex-end" }}>
-                            <Button variant="contained" type="submit" >
-                                Add Lead
-                            </Button>
+                            {leadId ? (<>
+                                <Button variant="contained" type="submit" >
+                                    Update Lead
+                                </Button>
+                            </>) : (<>
+                                <Button variant="contained" type="submit" >
+                                    Add Lead
+                                </Button>
+                            </>)}
+
                         </CardActions>
                     </Grid>
                 </MainCard>

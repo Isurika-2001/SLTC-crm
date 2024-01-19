@@ -80,12 +80,12 @@ async function login(req, res) {
     // Extract permissions from user_type
     const permissions = userType
       ? {
-          lead: userType.lead,
-          user: userType.user,
-          student: userType.student,
-          branch: userType.branch,
-          course: userType.course,
-        }
+        lead: userType.lead,
+        user: userType.user,
+        student: userType.student,
+        branch: userType.branch,
+        course: userType.course,
+      }
       : {};
 
     // Create JWT token with user information and permissions
@@ -196,6 +196,38 @@ async function getUsersByUserType(req, res) {
 
 }
 
+//get counsellors
+async function getCounsellors(req, res) {
+
+  const user_type_document = await User_type.find({ name: 'counselor' });
+
+  if (!user_type_document) {
+    res.status(400).json({ error: `user_type not found: counselor` })
+  }
+
+  if (user_type_document[0]._id != null) {
+    try {
+      const users = await User.find({ user_type: user_type_document[0]._id });
+      const counsellorDetails = [];
+
+      for(const counsellor of users){
+        const counsellorDetail = {
+          id: counsellor._id,
+          label: counsellor.name
+        };
+        counsellorDetails.push(counsellorDetail)
+
+      }
+
+      res.status(200).json(counsellorDetails);
+    } catch (error) {
+      console.error("Error fetching counsellors", error);
+      res.status(500).json({ error: "Internal Server Error", message: "Error fetching users by user_type" });
+    }
+  }
+
+}
+
 // handle user enable and disable with status field
 async function handleEnableDisable(req, res) {
   try {
@@ -235,4 +267,5 @@ module.exports = {
   updateUserById,
   getUsersByUserType,
   handleEnableDisable,
+  getCounsellors,
 };

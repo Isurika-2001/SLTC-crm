@@ -69,7 +69,7 @@ async function addLead(req, res) {
 
   if (leastAllocatedCounselor) {
     cid = leastAllocatedCounselor.counselor_id;
-  }else{
+  } else {
     console.log("no counsellor");
   }
 
@@ -138,10 +138,8 @@ async function getLeadsSummaryDetails(req, res) {
         date: lead.date,
         scheduled_at: lead.scheduled_at,
         scheduled_to: lead.scheduled_to,
-        student: {
-          name: lead.student_id.name,
-          contact_no: lead.student_id.contact_no,
-        },
+        name: lead.student_id.name,
+        contact_no: lead.student_id.contact_no,
         course: lead.course_id.name,
         branch: lead.branch_id.name,
         counsellor: lead.counsellor_id ? lead.counsellor_id.name : null,
@@ -152,6 +150,59 @@ async function getLeadsSummaryDetails(req, res) {
     }
 
     res.status(200).json(leadsDetails);
+  } catch (error) {
+    console.error("Error fetching leads:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+}
+
+function formatDate(inputDate) {
+  const date = new Date(inputDate);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const year = date.getFullYear();
+  const formattedD = `${year}-${month}-${day}`;
+  return formattedD;
+}
+//get one lead
+async function getOneLeadSummaryDetails(req, res) {
+  const { id } = req.params;
+  try {
+    const lead = await Lead.findById({ _id: id })
+      .populate("course_id", "name")
+      .populate("branch_id", "name")
+      .exec();
+
+    // Find the latest follow-up for the current lead
+    const latestFollowUp = await FollowUp.findOne({ lead_id: id })
+      .sort({ date: -1 })
+      .populate("status_id", "name")
+      .exec();
+
+    const student = await Student.findById({ _id: lead.student_id })
+
+
+    // Process lead and latest follow-up
+    const leadDetail = {
+      id: lead._id,
+      date: formatDate(student.dob),
+      scheduled_at: formatDate(lead.scheduled_at),
+      scheduled_to: formatDate(lead.scheduled_to),
+      name: student.name,
+      contact_no: student.contact_no,
+      dob: formatDate(student.dob),
+      email: student.email,
+      student_id: student._id,
+      address: student.address,
+      course: lead.course_id.name,
+      branch: lead.branch_id.name,
+      status: latestFollowUp ? latestFollowUp.status_id.name : null,
+      comment: latestFollowUp ? latestFollowUp.comment : null,
+    };
+
+
+    console.log(leadDetail);
+    res.status(200).json(leadDetail);
   } catch (error) {
     console.error("Error fetching leads:", error);
     res.status(500).json({ error: "Internal Server Error" });
@@ -190,7 +241,9 @@ async function checkForDuplicate(req, res) {
 
 async function allocateLeadsToCounselors() {
   try {
-    const twoHoursAgo = new Date(Date.now() -  60 * 60 * 2 * 1000); // Calculate the time two hours ago
+    const leastAllocatedCounselor = await getLeastAllocatedCounselor();
+    console.log(leastAllocatedCounselor.counselor_id)
+    const twoHoursAgo = new Date(Date.now() - 60 * 60 * 2 * 1000); // Calculate the time two hours ago
 
     // Find leads in the "new" status without a counsellor assigned within the last two hours
     const unallocatedLeads = await Lead.find({
@@ -202,7 +255,7 @@ async function allocateLeadsToCounselors() {
     for (const lead of unallocatedLeads) {
       // Allocate the lead to a counsellor
       const leastAllocatedCounselor = await getLeastAllocatedCounselor();
-
+      console.log(leastAllocatedCounselor.counselor_id)
       if (leastAllocatedCounselor) {
         lead.counsellor_id = leastAllocatedCounselor.counselor_id;
         await lead.save();
@@ -257,6 +310,7 @@ async function getLeastAllocatedCounselor() {
     ]);
 
     if (leastAllocatedCounselor.length > 0) {
+      console.log(leastAllocatedCounselor[0])
       return leastAllocatedCounselor[0];
     } else {
       return null;
@@ -275,4 +329,5 @@ module.exports = {
   updateLead,
   getLeadsSummaryDetails,
   checkForDuplicate,
+  getOneLeadSummaryDetails,
 };
