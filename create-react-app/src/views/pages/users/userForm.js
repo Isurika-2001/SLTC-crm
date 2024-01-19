@@ -1,20 +1,23 @@
-import * as React from 'react';
+import React, { useState, useEffect } from 'react';
 import TextField from '@mui/material/TextField';
 import Grid from '@mui/material/Grid';
 import MainCard from 'ui-component/cards/MainCard';
 import { Button, CardActions, Divider, InputAdornment, Typography, useMediaQuery, MenuItem } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { AccountCircle } from '@mui/icons-material';
-import LockIcon from '@mui/icons-material/Lock';
-import EmailIcon from '@mui/icons-material/Email';
-import MergeTypeIcon from '@mui/icons-material/MergeType';
-import { useEffect, useState } from 'react';
+import { AccountCircle, Lock as LockIcon, Email as EmailIcon, MergeType as MergeTypeIcon } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 
 export default function UserForm() {
   const theme = useTheme();
   const matchDownSM = useMediaQuery(theme.breakpoints.down('md'));
   const [userTypes, setUserTypes] = useState([]);
   const [selectedUserType, setSelectedUserType] = useState('');
+  const [userData, setUserData] = useState({});
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const userId = urlParams.get('id');
 
   const fetchData = async () => {
     try {
@@ -26,33 +29,59 @@ export default function UserForm() {
     }
   };
 
+  const fetchUserData = async (userId) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`https://localhost:8080/api/users/${userId}`);
+      const userData = await res.json();
+
+      // Set user data in the state
+      setUserData(userData);
+
+      // Set selected user type using the mapping
+      setSelectedUserType(userData.user_type);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
-  }, []);
+    if (userId) {
+      fetchUserData(userId);
+    }
+  }, [userId]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Selected User Type:', selectedUserType);
 
-    // Gather form data
+    // Map selectedUserType from ID to Name
+    const mappedUserType = userTypes.find((userType) => userType._id === selectedUserType)?.name || '';
+
     const formData = {
       name: e.target.name.value,
       password: e.target.password.value,
       email: e.target.email.value,
-      user_type: selectedUserType
+      user_type: mappedUserType
     };
 
     try {
-      // Perform the form submission logic, e.g., send data to the server
-      const res = await fetch('https://localhost:8080/api/users/add-new', {
-        method: 'POST',
+      const apiUrl = userId ? `https://localhost:8080/api/users/${userId}` : 'https://localhost:8080/api/users/add-new';
+
+      const res = await fetch(apiUrl, {
+        // if update method should be put if add new method should be post
+        method: userId ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(formData)
       });
 
-      // Handle the server response if needed
+      // navigate to view users page
+      navigate('/users/view');
+
       console.log('Server response:', await res.json());
     } catch (error) {
       console.error('Error submitting form:', error);
@@ -61,107 +90,114 @@ export default function UserForm() {
 
   return (
     <>
-      <MainCard title="Add New User">
+      <MainCard title={userId ? 'Update User' : 'Add New User'}>
         <form onSubmit={handleSubmit}>
           <Grid container direction="column" justifyContent="center">
             <Grid container sx={{ p: 3 }} spacing={matchDownSM ? 0 : 2}>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="h5" component="h5">
-                  Name
-                </Typography>
-                <TextField
-                  fullWidth
-                  // label="First Name"
-                  margin="normal"
-                  name="name"
-                  type="text"
-                  defaultValue=""
-                  sx={{ ...theme.typography.customInput }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <AccountCircle />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-              </Grid>
+              {(!userId || (Object.keys(userData).length > 0 && !loading)) && (
+                <>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="h5" component="h5">
+                      Name
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      disabled={userId ? true : false}
+                      margin="normal"
+                      name="name"
+                      type="text"
+                      defaultValue={userData.name || ''}
+                      sx={{ ...theme.typography.customInput }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <AccountCircle />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
 
-              <Grid item xs={12} sm={6}>
-                <Typography variant="h5" component="h5">
-                  Password
-                </Typography>
-                <TextField
-                  fullWidth
-                  // label="First Name"
-                  margin="normal"
-                  name="password"
-                  type="password"
-                  defaultValue=""
-                  sx={{ ...theme.typography.customInput }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockIcon />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="h5" component="h5">
-                  Email
-                </Typography>
-                <TextField
-                  fullWidth
-                  // label="First Name"
-                  margin="normal"
-                  name="email"
-                  type="email"
-                  defaultValue=""
-                  sx={{ ...theme.typography.customInput }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <EmailIcon />
-                      </InputAdornment>
-                    )
-                  }}
-                />
-              </Grid>
-              <Grid item xs={12} sm={6}>
-                <Typography variant="h5" component="h5">
-                  User Type
-                </Typography>
-                <TextField
-                  fullWidth
-                  margin="normal"
-                  name="userType"
-                  select
-                  value={selectedUserType}
-                  onChange={(e) => setSelectedUserType(e.target.value)}
-                  sx={{ ...theme.typography.customInput }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <MergeTypeIcon />
-                      </InputAdornment>
-                    )
-                  }}
-                >
-                  <MenuItem value="">Select User Type</MenuItem>
-                  {userTypes.map((userType) => (
-                    <MenuItem key={userType._id} value={userType.name}>
-                      {userType.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="h5" component="h5">
+                      Password
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      margin="normal"
+                      name="password"
+                      type="password"
+                      disabled={userId ? true : false}
+                      defaultValue={userData.password || ''}
+                      sx={{ ...theme.typography.customInput }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockIcon />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="h5" component="h5">
+                      Email
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      margin="normal"
+                      name="email"
+                      type="email"
+                      disabled={userId ? true : false}
+                      defaultValue={userData.email || ''}
+                      sx={{ ...theme.typography.customInput }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <EmailIcon />
+                          </InputAdornment>
+                        )
+                      }}
+                    />
+                  </Grid>
+
+                  <Grid item xs={12} sm={6}>
+                    <Typography variant="h5" component="h5">
+                      User Type
+                    </Typography>
+                    <TextField
+                      fullWidth
+                      margin="normal"
+                      name="userType"
+                      select
+                      value={selectedUserType}
+                      onChange={(e) => setSelectedUserType(e.target.value)}
+                      sx={{ ...theme.typography.customInput }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <MergeTypeIcon />
+                          </InputAdornment>
+                        )
+                      }}
+                    >
+                      <MenuItem value="">Select User Type</MenuItem>
+                      {userTypes.map((userType) => (
+                        <MenuItem key={userType._id} value={userType._id}>
+                          {userType.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Grid>
+                </>
+              )}
+
               <Divider />
             </Grid>
             <CardActions sx={{ justifyContent: 'flex-end' }}>
               <Button variant="contained" type="submit">
-                Add User
+                {userId ? 'Update User' : 'Add User'}
               </Button>
             </CardActions>
           </Grid>
