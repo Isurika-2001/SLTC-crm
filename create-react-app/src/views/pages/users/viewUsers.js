@@ -156,14 +156,17 @@ export default function ViewUsers() {
               {/* DataGrid */}
               <Grid item xs={12} sm={12}>
                 <div style={{ height: 400, width: '100%' }}>
-                  <DataGrid
-                    rows={filteredData}
-                    columns={columns}
-                    pageSize={5}
-                    pageSizeOptions={[5, 10]}
-                    checkboxSelection
-                    pagination
-                  />
+                <DataGrid
+                  rows={filteredData}
+                  columns={columns}
+                  initialState={{
+                    pagination: {
+                      paginationModel: { page: 0, pageSize: 5 }
+                    }
+                  }}
+                  pageSizeOptions={[5, 10]}
+                  checkboxSelection
+                />
                 </div>
               </Grid>
             </Grid>
